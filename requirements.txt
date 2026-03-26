@@ -1,0 +1,27 @@
+# Automated Jira Ticket Prioritization using NLP
+# Python 3.10+
+
+# Data & numerics
+pandas>=2.0.0
+numpy>=1.24.0
+
+# NLP & ML baseline
+scikit-learn>=1.3.0
+imbalanced-learn>=0.11.0
+
+# Transformers & deep learning
+torch>=2.0.0
+transformers>=4.30.0
+datasets>=2.14.0
+accelerate>=0.20.0
+
+# Evaluation & viz
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# ASF BSON (Zenodo dump)
+pymongo>=4.5.0
+
+# Utils
+tqdm>=4.65.0
+regex>=2023.0.0
