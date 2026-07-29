@@ -12,7 +12,7 @@ from asf_data import build_asf_sample_csv
 PRIORITY_LABEL_MAP = {
     "P0": "High",
     "P1": "High",
-    "Blocker": "Blocker",
+    "Blocker": "High",
     "Urgent": "High",
     "Critical": "High",
     "Highest": "High",
