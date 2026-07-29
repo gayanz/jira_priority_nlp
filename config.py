@@ -21,7 +21,7 @@ ASF_SAMPLE_CSV = DATA_DIR / "jira_asf_5000.csv"
 # How many issues to scan from BSON before stratified sampling (cap memory)
 ASF_MAX_SCAN_ISSUES = 250_000
 # Target sample size for this study
-SAMPLE_SIZE = 5000
+SAMPLE_SIZE = 500
 
 RANDOM_STATE = 42
 TRAIN_RATIO = 0.8
@@ -32,7 +32,7 @@ TEST_RATIO = 0.1
 BERT_MODEL_NAME = "distilbert-base-uncased"
 BERT_MAX_LENGTH = 256
 BERT_BATCH_SIZE = 16
-BERT_EPOCHS = 5  # use early stopping; effective range 3–5
+BERT_EPOCHS = 1  # use early stopping; effective range 3–5
 BERT_LEARNING_RATE = 2e-5
 BERT_WEIGHT_DECAY = 0.01
 BERT_EARLY_STOPPING_PATIENCE = 2

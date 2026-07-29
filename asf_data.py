@@ -101,6 +101,13 @@ def issues_to_rows(
     return pd.DataFrame(rows)
 
 
+def apply_priority_label_map(df: pd.DataFrame, priority_label_map: dict[str, str]) -> pd.DataFrame:
+    """Map raw priority names to canonical labels; drop unmapped rows."""
+    out = df.copy()
+    out["priority"] = out["priority"].map(priority_label_map)
+    return out.dropna(subset=["priority"]).reset_index(drop=True)
+
+
 def stratified_sample(df: pd.DataFrame, n: int, random_state: int) -> pd.DataFrame:
     """Stratified sample of n rows by priority; if too few rows, return df."""
     df = df.drop_duplicates(subset=["summary", "description", "priority"]).reset_index(drop=True)
@@ -125,6 +132,7 @@ def build_asf_sample_csv(
     sample_size: int = SAMPLE_SIZE,
     max_scan: int = ASF_MAX_SCAN_ISSUES,
     random_state: int = RANDOM_STATE,
+    priority_label_map: dict[str, str] | None = None,
 ) -> Path:
     """
     Stream issues from BSON, keep up to max_scan valid rows, stratified sample sample_size, save CSV.
@@ -149,6 +157,11 @@ def build_asf_sample_csv(
     print(f"Scanning up to {max_scan:,} issues from {issues_path} ...")
     df = issues_to_rows(iter_issues_from_bson(issues_path), priority_map, max_scan)
     print(f"Valid issues with summary + priority: {len(df):,}")
+
+    if priority_label_map:
+        before = len(df)
+        df = apply_priority_label_map(df, priority_label_map)
+        print(f"After priority label mapping: {len(df):,} (dropped {before - len(df):,} unmapped)")
 
     sampled = stratified_sample(df, sample_size, random_state)
     sampled.to_csv(out_csv, index=False)
