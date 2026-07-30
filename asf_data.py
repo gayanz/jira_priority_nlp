@@ -7,6 +7,7 @@ Expected file: data/issues.bson.gz (and optionally priorities.bson.gz if priorit
 from __future__ import annotations
 
 import gzip
+import hashlib
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -23,6 +24,80 @@ from config import (
     SAMPLE_SIZE,
     RANDOM_STATE,
 )
+
+# Zenodo 5665896 — issues.bson.gz metadata (for integrity checks)
+ISSUES_BSON_GZ_EXPECTED = {
+    "size": 764_648_860,
+    "md5": "c285290f3b4e0843d6cf3ea05da74a53",
+}
+ZENODO_ISSUES_URL = (
+    "https://zenodo.org/api/records/5665896/files/issues.bson.gz/content"
+)
+
+
+def _md5_file(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
+    h = hashlib.md5()
+    with path.open("rb") as f:
+        while chunk := f.read(chunk_size):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def validate_gzip_bson(
+    path: Path,
+    *,
+    expected_size: int | None = None,
+    expected_md5: str | None = None,
+    label: str | None = None,
+) -> None:
+    """
+    Fail fast if a .bson.gz file is missing, truncated, or not valid gzip.
+
+    EOFError from gzip usually means an incomplete download or a bad Drive copy.
+    """
+    label = label or path.name
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing {path}. Download issues.bson.gz from "
+            "https://zenodo.org/records/5665896 (~729 MB)."
+        )
+
+    size = path.stat().st_size
+    if expected_size is not None and size != expected_size:
+        raise ValueError(
+            f"{label} looks incomplete: got {size:,} bytes, expected {expected_size:,}.\n"
+            "The file was likely interrupted during download or upload.\n"
+            f"Re-download from {ZENODO_ISSUES_URL}"
+        )
+
+    try:
+        md5 = hashlib.md5() if expected_md5 is not None else None
+        with gzip.open(path, "rb") as f:
+            while chunk := f.read(8 * 1024 * 1024):
+                if md5 is not None:
+                    md5.update(chunk)
+    except EOFError as exc:
+        raise EOFError(
+            f"{label} is corrupted or truncated ({size:,} bytes).\n"
+            "Re-download the full issues.bson.gz (~729 MB) from Zenodo:\n"
+            "  https://zenodo.org/records/5665896\n"
+            "If using Google Drive, wait until upload/sync finishes, then copy again."
+        ) from exc
+    except OSError as exc:
+        raise OSError(
+            f"{label} is not a valid gzip file ({size:,} bytes). "
+            "You may have saved an HTML error page instead of the dataset."
+        ) from exc
+
+    if expected_md5 is not None:
+        digest = md5.hexdigest() if md5 is not None else _md5_file(path)
+        if digest != expected_md5:
+            raise ValueError(
+                f"{label} failed MD5 check (got {digest}, expected {expected_md5}). "
+                "Re-download from Zenodo."
+            )
+
+    print(f"OK: {label} ({size:,} bytes, gzip valid)")
 
 
 def _as_text(value: Any) -> str:
@@ -60,6 +135,7 @@ def load_priority_map(path: Path) -> dict:
     """Build ObjectId (str) -> document map from priorities.bson.gz."""
     if not path.exists():
         return {}
+    validate_gzip_bson(path, label=path.name)
     out: dict = {}
     with gzip.open(path, "rb") as f:
         for doc in decode_file_iter(f):
@@ -147,6 +223,12 @@ def build_asf_sample_csv(
             "Download `issues.bson.gz` from Zenodo record 5665896 (Apache Jira Issue Tracking Dataset) "
             "and place it in the data/ folder."
         )
+
+    validate_gzip_bson(
+        issues_path,
+        expected_size=ISSUES_BSON_GZ_EXPECTED["size"],
+        expected_md5=ISSUES_BSON_GZ_EXPECTED["md5"],
+    )
 
     priority_map = load_priority_map(priorities_path) if priorities_path.exists() else None
     if priority_map:
