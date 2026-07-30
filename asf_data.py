@@ -70,12 +70,19 @@ def validate_gzip_bson(
             f"Re-download from {ZENODO_ISSUES_URL}"
         )
 
+    # Zenodo MD5 is for the compressed .gz bytes on disk, not decompressed BSON.
+    if expected_md5 is not None:
+        digest = _md5_file(path)
+        if digest != expected_md5:
+            raise ValueError(
+                f"{label} failed MD5 check (got {digest}, expected {expected_md5}). "
+                "Re-download from Zenodo."
+            )
+
     try:
-        md5 = hashlib.md5() if expected_md5 is not None else None
         with gzip.open(path, "rb") as f:
-            while chunk := f.read(8 * 1024 * 1024):
-                if md5 is not None:
-                    md5.update(chunk)
+            while f.read(8 * 1024 * 1024):
+                pass
     except EOFError as exc:
         raise EOFError(
             f"{label} is corrupted or truncated ({size:,} bytes).\n"
@@ -88,14 +95,6 @@ def validate_gzip_bson(
             f"{label} is not a valid gzip file ({size:,} bytes). "
             "You may have saved an HTML error page instead of the dataset."
         ) from exc
-
-    if expected_md5 is not None:
-        digest = md5.hexdigest() if md5 is not None else _md5_file(path)
-        if digest != expected_md5:
-            raise ValueError(
-                f"{label} failed MD5 check (got {digest}, expected {expected_md5}). "
-                "Re-download from Zenodo."
-            )
 
     print(f"OK: {label} ({size:,} bytes, gzip valid)")
 
