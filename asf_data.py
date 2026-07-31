@@ -21,7 +21,7 @@ from config import (
     ASF_PRIORITIES_BSON_GZ,
     ASF_SAMPLE_CSV,
     ASF_MAX_SCAN_ISSUES,
-    SAMPLE_SIZE,
+    MIN_SAMPLES_PER_CLASS,
     RANDOM_STATE,
 )
 
@@ -176,13 +176,6 @@ def issues_to_rows(
     return pd.DataFrame(rows)
 
 
-def apply_priority_label_map(df: pd.DataFrame, priority_label_map: dict[str, str]) -> pd.DataFrame:
-    """Map raw priority names to canonical labels; drop unmapped rows."""
-    out = df.copy()
-    out["priority"] = out["priority"].map(priority_label_map)
-    return out.dropna(subset=["priority"]).reset_index(drop=True)
-
-
 def stratified_sample(df: pd.DataFrame, n: int, random_state: int) -> pd.DataFrame:
     """Stratified sample of n rows by priority; if too few rows, return df."""
     df = df.drop_duplicates(subset=["summary", "description", "priority"]).reset_index(drop=True)
@@ -200,17 +193,39 @@ def stratified_sample(df: pd.DataFrame, n: int, random_state: int) -> pd.DataFra
     return df.iloc[train_idx].reset_index(drop=True)
 
 
+def balanced_sample(df: pd.DataFrame, min_per_class: int, random_state: int) -> pd.DataFrame:
+    """Sample at least min_per_class rows per priority; oversample rare labels with replacement."""
+    df = df.drop_duplicates(subset=["summary", "description", "priority"]).reset_index(drop=True)
+    if len(df) == 0:
+        return df
+
+    groups = list(df.groupby("priority", sort=True))
+    if not groups:
+        return df
+
+    parts: list[pd.DataFrame] = []
+    for i, (label, group) in enumerate(groups):
+        if len(group) == 0:
+            raise ValueError(f"No rows available for priority label: {label!r}")
+        replace = len(group) < min_per_class
+        parts.append(
+            group.sample(n=min_per_class, replace=replace, random_state=random_state + i)
+        )
+
+    out = pd.concat(parts, ignore_index=True)
+    return out.sample(frac=1, random_state=random_state).reset_index(drop=True)
+
+
 def build_asf_sample_csv(
     issues_path: Path | None = None,
     priorities_path: Path | None = None,
     out_csv: Path | None = None,
-    sample_size: int = SAMPLE_SIZE,
+    min_per_class: int = MIN_SAMPLES_PER_CLASS,
     max_scan: int = ASF_MAX_SCAN_ISSUES,
     random_state: int = RANDOM_STATE,
-    priority_label_map: dict[str, str] | None = None,
 ) -> Path:
     """
-    Stream issues from BSON, keep up to max_scan valid rows, stratified sample sample_size, save CSV.
+    Stream issues from BSON, keep up to max_scan valid rows, balanced sample (min_per_class per label), save CSV.
     """
     issues_path = issues_path or ASF_ISSUES_BSON_GZ
     priorities_path = priorities_path or ASF_PRIORITIES_BSON_GZ
@@ -239,14 +254,9 @@ def build_asf_sample_csv(
     df = issues_to_rows(iter_issues_from_bson(issues_path), priority_map, max_scan)
     print(f"Valid issues with summary + priority: {len(df):,}")
 
-    if priority_label_map:
-        before = len(df)
-        df = apply_priority_label_map(df, priority_label_map)
-        print(f"After priority label mapping: {len(df):,} (dropped {before - len(df):,} unmapped)")
-
-    sampled = stratified_sample(df, sample_size, random_state)
+    sampled = balanced_sample(df, min_per_class, random_state)
     sampled.to_csv(out_csv, index=False)
-    print(f"Wrote stratified sample n={len(sampled)} -> {out_csv}")
+    print(f"Wrote balanced sample n={len(sampled)} (min {min_per_class} per label) -> {out_csv}")
     print(sampled["priority"].value_counts())
     return out_csv
 

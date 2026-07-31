@@ -18,9 +18,11 @@ ASF_PRIORITIES_BSON_GZ = DATA_DIR / "priorities.bson.gz"  # optional, for Object
 # Prepared sample: 5000 records (Summary, Description, Priority)
 ASF_SAMPLE_CSV = DATA_DIR / "jira_asf_5000.csv"
 
-# How many issues to scan from BSON before stratified sampling (cap memory)
+# How many issues to scan from BSON before balanced sampling (cap memory)
 ASF_MAX_SCAN_ISSUES = 250_000
-# Target sample size for this study
+# Minimum rows per priority label when building jira_asf_5000.csv (total ≈ MIN_SAMPLES_PER_CLASS × num_labels)
+MIN_SAMPLES_PER_CLASS = 500
+# Target size for synthetic demo data only (see train.py when CSV is missing)
 SAMPLE_SIZE = 500
 
 RANDOM_STATE = 42

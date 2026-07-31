@@ -40,14 +40,13 @@ def load_dataframe():
         df.to_csv(ASF_SAMPLE_CSV, index=False)
         print(f"       Wrote demo {ASF_SAMPLE_CSV}")
     df = normalize_column_names(df)
-    if len(df) > SAMPLE_SIZE:
-        df = df.sample(n=SAMPLE_SIZE, random_state=RANDOM_STATE).reset_index(drop=True)
     return df
 
 
 def main():
-    print("Loading data (target n=%d)..." % SAMPLE_SIZE)
+    print("Loading data...")
     df = load_dataframe()
+    print(f"Loaded n={len(df)} rows")
     texts = prepare_text(df)
     raw_labels = prepare_labels(df)
 
